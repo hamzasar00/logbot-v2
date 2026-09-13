@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
-const { entersState, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
+const { entersState, getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const { config } = require('dotenv');
 config();
 const { PlainLogBuilder, formatPlainLog, NO_MENTIONS } = require('./plain-log');
@@ -335,9 +335,12 @@ async function connectToVoiceChannel(guild, channel, reply) {
   const botPermissions = channel.permissionsFor(guild.members.me);
   if (!botPermissions?.has(PermissionsBitField.Flags.ViewChannel) ||
       !botPermissions?.has(PermissionsBitField.Flags.Connect)) {
-    await reply('❌ Botun seçilen kanalı görme veya kanala bağlanma izni yok.');
+    await reply('❌ Botun bu kanalda **Kanalı Görüntüle** ve **Bağlan** izinlerine ihtiyacı var. Kanal ayarlarından bot rolüne de izin ver.');
     return;
   }
+
+  const existingConnection = getVoiceConnection(guild.id);
+  existingConnection?.destroy();
 
   const connection = joinVoiceChannel({
     channelId: channel.id,
@@ -346,14 +349,20 @@ async function connectToVoiceChannel(guild, channel, reply) {
     selfDeaf: true,
     selfMute: true,
   });
+  connection.on('error', (error) => {
+    console.error(`[${guild.name}] Ses bağlantısı hatası:`, error.message);
+  });
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
     await reply(`✅ ${channel} ses kanalına bağlandım.`);
   } catch (error) {
     connection.destroy();
-    console.error('Ses kanalına bağlanma hatası:', error.message);
-    await reply('❌ Ses kanalına bağlanamadım. Kanal izinlerini kontrol et.');
+    console.error(
+      `[${guild.name}] Ses kanalına bağlanma hatası (${connection.state.status}):`,
+      error.message
+    );
+    await reply('❌ Ses kanalına bağlanamadım. Bot rolünde ve kanalın özel izinlerinde **Kanalı Görüntüle + Bağlan** açık olduğundan emin ol.');
   }
 }
 
