@@ -99,7 +99,8 @@ const {
     const configured = process.env[EMOJI_ENV_KEYS[key]]?.trim();
     if (configured) {
       const match = configured.match(/^<a?:([A-Za-z0-9_]+):([0-9]+)>$/);
-      if (match && guild?.emojis?.cache?.get(match[2])?.available !== false) return configured;
+      const customEmoji = guild?.emojis?.cache?.get(match[2]);
+      if (match && customEmoji && customEmoji.available !== false) return configured;
     }
     return DEFAULT_EMOJIS[key] || DEFAULT_EMOJIS.security;
     }
@@ -136,11 +137,13 @@ const {
     const context = contextValues.length ? contextValues.join('  •  ') : 'Sunucu güvenlik kaydı';
     const avatarUrl = data.author?.icon_url || data.thumbnail?.url;
     const container = new ContainerBuilder().setAccentColor(getAccentColor(data, logGroupKey));
-    const header = new SectionBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(emoji + ' **' + safeSingleLine(title, guild, 180) + '**\n-# Sunucu güvenlik kaydı • ' + timestamp + '\n-# ' + context),
-    );
-    if (/^https?:\/\//i.test(String(avatarUrl || ''))) header.setThumbnailAccessory(new ThumbnailBuilder().setURL(avatarUrl));
-    container.addSectionComponents(header);
+    const headerText = new TextDisplayBuilder().setContent(emoji + ' **' + safeSingleLine(title, guild, 180) + '**\n-# Sunucu güvenlik kaydı • ' + timestamp + '\n-# ' + context);
+    if (/^https?:\/\//i.test(String(avatarUrl || ''))) {
+      const header = new SectionBuilder().addTextDisplayComponents(headerText).setThumbnailAccessory(new ThumbnailBuilder().setURL(avatarUrl));
+      container.addSectionComponents(header);
+    } else {
+      container.addTextDisplayComponents(headerText);
+    }
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
 
     const description = safeText(data.description, guild, 1200);
@@ -148,7 +151,7 @@ const {
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**AÇIKLAMA**\n' + description.split('\n').slice(0, 8).map((line) => '> ' + line).join('\n')));
     }
     if (visibleFields.length) {
-      const fieldText = visibleFields.slice(0, 14).map((field) => renderField(field, guild)).join('\n\n');
+      const fieldText = truncateText(visibleFields.slice(0, 14).map((field) => renderField(field, guild)).join('\n\n'), 3600);
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fieldText));
     }
     const imageUrl = data.image?.url;
