@@ -97,85 +97,117 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
     const avatar = await loadAvatar(data.author?.icon_url || data.thumbnail?.url);
     const measure = createCanvas(WIDTH, 100).getContext('2d');
     measure.font = '22px Arial';
-    const descriptionLines = description ? wrapText(measure, description, WIDTH - PAD * 2 - 30, 3, guild) : [];
+    const descriptionLines = description ? wrapText(measure, description, WIDTH - PAD * 2 - 30, 2, guild) : [];
     const fields = (Array.isArray(data.fields) ? data.fields : [])
       .map((field) => ({
         label: stripLeadingIcon(cleanText(field.name || 'Bilgi', guild)),
-        valueLines: wrapText(measure, field.value || 'Belirtilmedi', WIDTH - PAD * 2 - 44, 3, guild),
+        valueLines: wrapText(measure, field.value || 'Belirtilmedi', WIDTH - PAD * 2 - 54, 3, guild),
         inline: Boolean(field.inline),
       }))
       .filter((field) => !/^(tarih|zaman|date|timestamp)$/i.test(field.label));
     const rows = makeRows(fields);
-    const rowHeights = rows.map((row) => {
-      const maxLines = Math.max(...row.map((field) => field.valueLines.length));
-      return 34 + maxLines * 28 + 24;
-    });
-    const height = Math.max(270, 158 + descriptionLines.length * 31 + rowHeights.reduce((sum, value) => sum + value, 0));
+    const rowHeights = rows.map((row) => 82 + Math.max(...row.map((field) => field.valueLines.length)) * 27);
+    const headerHeight = 180;
+    const height = Math.max(430, headerHeight + rowHeights.reduce((sum, value) => sum + value + 16, 0) + 72);
     const canvas = createCanvas(WIDTH, height);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = BACKGROUND;
+    ctx.fillStyle = '#090d18';
     ctx.fillRect(0, 0, WIDTH, height);
-    ctx.fillStyle = PANEL;
-    roundRect(ctx, 18, 18, WIDTH - 36, height - 36, 18);
-    ctx.fill();
+    ctx.globalAlpha = 0.16;
     ctx.fillStyle = accent;
-    roundRect(ctx, 18, 18, 9, height - 36, 5);
+    ctx.beginPath();
+    ctx.arc(WIDTH - 80, 38, 180, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#7c3aed';
+    ctx.beginPath();
+    ctx.arc(70, height - 20, 150, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    const bannerGradient = ctx.createLinearGradient(34, 28, WIDTH - 34, 160);
+    bannerGradient.addColorStop(0, accent);
+    bannerGradient.addColorStop(0.55, '#4338ca');
+    bannerGradient.addColorStop(1, '#7c3aed');
+    ctx.fillStyle = bannerGradient;
+    roundRect(ctx, 34, 28, WIDTH - 68, 132, 28);
     ctx.fill();
 
-    ctx.fillStyle = TEXT;
-    ctx.font = 'bold 32px Arial';
-    ctx.fillText(title, PAD, 76);
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = '#ffffff';
+    for (let index = 0; index < 7; index += 1) {
+      ctx.beginPath();
+      ctx.arc(WIDTH - 300 + index * 58, 38 + (index % 2) * 42, 42, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(92, 94, 38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOG', 92, 101);
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 34px Arial';
+    ctx.fillText(title, 150, 89);
+    ctx.font = '18px Arial';
+    ctx.globalAlpha = 0.84;
+    ctx.fillText(descriptionLines[0] || 'Sunucu olay kaydı', 150, 120);
+    ctx.globalAlpha = 1;
     if (avatar) {
       ctx.save();
       ctx.beginPath();
-      ctx.arc(WIDTH - 92, 72, 42, 0, Math.PI * 2);
+      ctx.arc(WIDTH - 94, 94, 40, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(avatar, WIDTH - 134, 30, 84, 84);
+      ctx.drawImage(avatar, WIDTH - 134, 54, 80, 80);
       ctx.restore();
-      ctx.strokeStyle = accent;
+      ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(WIDTH - 92, 72, 42, 0, Math.PI * 2);
+      ctx.arc(WIDTH - 94, 94, 40, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    let y = 122;
-    if (descriptionLines.length) {
-      ctx.fillStyle = MUTED;
-      ctx.font = '22px Arial';
-      for (const line of descriptionLines) { ctx.fillText(line, PAD, y); y += 31; }
-      y += 12;
-    }
-    ctx.strokeStyle = DIVIDER;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(PAD, y);
-    ctx.lineTo(WIDTH - PAD, y);
-    ctx.stroke();
-    y += 28;
-
+    let y = headerHeight;
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       const row = rows[rowIndex];
-      const cellWidth = (WIDTH - PAD * 2 - (row.length - 1) * 34) / row.length;
+      const cellGap = 18;
+      const cellWidth = (WIDTH - PAD * 2 - (row.length - 1) * cellGap) / row.length;
+      const rowHeight = rowHeights[rowIndex];
       for (let cellIndex = 0; cellIndex < row.length; cellIndex += 1) {
         const field = row[cellIndex];
-        const x = PAD + cellIndex * (cellWidth + 34);
+        const x = PAD + cellIndex * (cellWidth + cellGap);
+        ctx.fillStyle = '#151b2a';
+        roundRect(ctx, x, y, cellWidth, rowHeight, 18);
+        ctx.fill();
+        ctx.strokeStyle = '#273149';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = accent;
+        roundRect(ctx, x, y, 5, rowHeight, 3);
+        ctx.fill();
         ctx.fillStyle = MUTED;
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText(field.label.toLocaleUpperCase('tr-TR'), x, y);
+        ctx.font = 'bold 15px Arial';
+        ctx.fillText(field.label.toLocaleUpperCase('tr-TR'), x + 22, y + 28);
         ctx.fillStyle = TEXT;
         ctx.font = '22px Arial';
-        let valueY = y + 26;
-        for (const line of field.valueLines) { ctx.fillText(line, x, valueY); valueY += 28; }
+        let valueY = y + 58;
+        for (const line of field.valueLines) { ctx.fillText(line, x + 22, valueY); valueY += 27; }
       }
-      y += rowHeights[rowIndex];
+      y += rowHeight + 16;
     }
 
     const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString('tr-TR') : new Date().toLocaleString('tr-TR');
     ctx.fillStyle = MUTED;
     ctx.font = '16px Arial';
-    ctx.fillText(footer + '  •  ' + timestamp, PAD, height - 40);
+    ctx.fillText(footer + '  •  ' + timestamp, PAD, height - 32);
+    ctx.fillStyle = accent;
+    ctx.fillRect(WIDTH - 150, height - 38, 92, 4);
     return canvas.toBuffer('image/png');
     }
 
