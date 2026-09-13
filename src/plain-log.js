@@ -110,8 +110,8 @@ function formatPlainLog(logEntry, guild, logGroupKey) {
   for (const field of Array.isArray(data.fields) ? data.fields : []) {
     const label = cleanLabel(field.name) || 'Bilgi';
     const emojiKey = getFieldEmojiKey(label);
-    const prefix = emojiKey ? `${getLogEmoji(guild, emojiKey)} ` : '';
-    lines.push(`${prefix}**${label}:** ${String(field.value ?? 'Belirtilmedi')}`);
+    const emojiLead = emojiKey ? `${getLogEmoji(guild, emojiKey)} ` : '';
+    lines.push(`${emojiLead}**${label}:** ${String(field.value ?? 'Belirtilmedi')}`);
   }
 
   if (data.image?.url) {

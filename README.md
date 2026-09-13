@@ -4,7 +4,7 @@ V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve
 
 ## Özellikler
 
-- Slash komutlarıyla log kategorisini, kanalları ve boost bildirimlerini yönetir; `moruk` veya başka bir prefix kullanılmaz.
+- Komutlar yalnızca Discord slash sistemiyle çalışır.
 - `/setup` ile log kategorisini ve kanalları otomatik oluşturur.
 - `/log` ile log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.
 - Üye, mesaj, rol, kanal, ses, moderasyon, sunucu, emoji/sticker ve boost loglarını destekler.
