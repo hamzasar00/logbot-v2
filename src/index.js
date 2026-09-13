@@ -251,7 +251,7 @@ async function sendLog(guildId, logGroupKey, embed) {
   }
 
   try {
-    const card = await renderLogCard(embed);
+    const card = await renderLogCard(embed, guild);
     await channel.send({ files: [{ attachment: card, name: 'log-card.png' }] });
   } catch (error) {
     console.error('Özel log kartı oluşturulamadı:', error.message);
