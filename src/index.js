@@ -579,31 +579,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   const inviteInfo = await getInviteJoinInfo(member);
-
+  const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
   const embed = new EmbedBuilder()
-    .setTitle('🟢 Üye Sunucuya Katıldı')
     .setColor(Colors.Green)
+    .setAuthor({ name: 'Üye Katıldı', iconURL: avatarUrl })
+    .setDescription('**' + member.user.tag + '** sunucuya katıldı.')
+    .setThumbnail(avatarUrl)
     .addFields(
-      { name: '👤 Kullanıcı', value: `<@${member.user.id}>`, inline: true },
-      { name: '🆔 Kullanıcı ID', value: `\`${member.user.id}\``, inline: true },
-      { name: '📨 Davet Eden', value: inviteInfo.inviter, inline: true },
-      { name: '📊 Toplam Davet', value: `${inviteInfo.totalInvites}`, inline: true },
-      { name: '📅 Tarih', value: new Date().toLocaleString('tr-TR'), inline: false }
-    );
-
+      { name: 'Kullanıcı', value: '<@' + member.user.id + '>', inline: true },
+      { name: 'Davet Eden', value: inviteInfo.inviter, inline: true },
+      { name: 'Toplam Davet', value: String(inviteInfo.totalInvites), inline: true },
+      { name: 'Kullanıcı ID', value: '`' + member.user.id + '`', inline: false },
+    )
+    .setFooter({ text: 'Üye Logu' })
+    .setTimestamp();
   await sendLog(member.guild.id, 'member', embed);
 });
 
 client.on(Events.GuildMemberRemove, async (member) => {
+  const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
   const embed = new EmbedBuilder()
-    .setTitle('🔴 Üye Sunucudan Ayrıldı')
     .setColor(Colors.Red)
+    .setAuthor({ name: 'Üye Ayrıldı', iconURL: avatarUrl })
+    .setDescription('**' + member.user.tag + '** sunucudan ayrıldı.')
+    .setThumbnail(avatarUrl)
     .addFields(
-      { name: '👤 Kullanıcı', value: `<@${member.user.id}>`, inline: true },
-      { name: '🆔 Kullanıcı ID', value: `\`${member.user.id}\``, inline: true },
-      { name: '📅 Tarih', value: new Date().toLocaleString('tr-TR'), inline: false }
-    );
-
+      { name: 'Kullanıcı', value: '<@' + member.user.id + '>', inline: true },
+      { name: 'Kullanıcı ID', value: '`' + member.user.id + '`', inline: true },
+    )
+    .setFooter({ text: 'Üye Logu' })
+    .setTimestamp();
   await sendLog(member.guild.id, 'member', embed);
 });
 
