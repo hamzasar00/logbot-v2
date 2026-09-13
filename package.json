@@ -1,0 +1,25 @@
+{
+  "name": "logbot-v2",
+  "version": "2.0.0",
+  "description": "Geliştirilmiş Türkçe Discord log, rol menüsü ve özel ses odası botu.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/index.js && node --check src/db.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "logs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  }
+}
