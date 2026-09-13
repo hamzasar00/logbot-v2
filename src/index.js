@@ -311,7 +311,53 @@ function hasManageBoostPermission(message) {
     message.member?.permissions?.has(PermissionsBitField.Flags.ManageChannels);
 }
 
-async function handleVoiceJoinCommand(message) {
+function isVoiceChannel(channel) {
+  return [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel?.type);
+}
+
+function createVoiceChannelPicker(userId) {
+  return new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId(`voice-join:${userId}`)
+      .setPlaceholder('Ses veya Stage kanalı seç')
+      .setChannelTypes([ChannelType.GuildVoice, ChannelType.GuildStageVoice])
+      .setMinValues(1)
+      .setMaxValues(1)
+  );
+}
+
+async function connectToVoiceChannel(guild, channel, reply) {
+  if (!isVoiceChannel(channel)) {
+    await reply('❌ Seçilen kanal bir ses veya Stage kanalı değil.');
+    return;
+  }
+
+  const botPermissions = channel.permissionsFor(guild.members.me);
+  if (!botPermissions?.has(PermissionsBitField.Flags.ViewChannel) ||
+      !botPermissions?.has(PermissionsBitField.Flags.Connect)) {
+    await reply('❌ Botun seçilen kanalı görme veya kanala bağlanma izni yok.');
+    return;
+  }
+
+  const connection = joinVoiceChannel({
+    channelId: channel.id,
+    guildId: guild.id,
+    adapterCreator: guild.voiceAdapterCreator,
+    selfDeaf: true,
+    selfMute: true,
+  });
+
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+    await reply(`✅ ${channel} ses kanalına bağlandım.`);
+  } catch (error) {
+    connection.destroy();
+    console.error('Ses kanalına bağlanma hatası:', error.message);
+    await reply('❌ Ses kanalına bağlanamadım. Kanal izinlerini kontrol et.');
+  }
+}
+
+async function handleVoiceJoinCommand(message, args) {
   if (!message.guild) {
     await message.reply('Bu komut bir sunucuda kullanılmalıdır.');
     return;
@@ -322,38 +368,22 @@ async function handleVoiceJoinCommand(message) {
     return;
   }
 
-  const channel = message.mentions.channels.first();
-  const isVoiceChannel = channel &&
-    [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type);
+  const mentionedChannel = message.mentions.channels.first();
+  const requestedChannelId = mentionedChannel?.id || args[0]?.match(/^\d+$/)?.[0] || args[0];
+  const channel = requestedChannelId
+    ? message.guild.channels.cache.get(requestedChannelId) ||
+      await message.guild.channels.fetch(requestedChannelId).catch(() => null)
+    : mentionedChannel;
 
-  if (!isVoiceChannel) {
-    await message.reply('Kullanım: `.ses-gir #ses-kanalı`');
+  if (!isVoiceChannel(channel)) {
+    await message.reply({
+      content: 'Ses kanalını aşağıdaki menüden seç veya kanal ID’si kullan: `.ses-gir 123456789012345678`',
+      components: [createVoiceChannelPicker(message.author.id)],
+    });
     return;
   }
 
-  const botPermissions = channel.permissionsFor(message.guild.members.me);
-  if (!botPermissions?.has(PermissionsBitField.Flags.ViewChannel) ||
-      !botPermissions?.has(PermissionsBitField.Flags.Connect)) {
-    await message.reply('❌ Botun seçilen kanalı görme veya kanala bağlanma izni yok.');
-    return;
-  }
-
-  const connection = joinVoiceChannel({
-    channelId: channel.id,
-    guildId: message.guild.id,
-    adapterCreator: message.guild.voiceAdapterCreator,
-    selfDeaf: true,
-    selfMute: true,
-  });
-
-  try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
-    await message.reply(`✅ ${channel} ses kanalına bağlandım.`);
-  } catch (error) {
-    connection.destroy();
-    console.error('Ses kanalına bağlanma hatası:', error.message);
-    await message.reply('❌ Ses kanalına bağlanamadım. Kanal izinlerini kontrol et.');
-  }
+  await connectToVoiceChannel(message.guild, channel, (content) => message.reply(content));
 }
 
 async function handleBoostChannelCommand(message) {
@@ -620,11 +650,38 @@ client.on(Events.MessageCreate, async (message) => {
   if (command === 'boost-test') return handleBoostTestCommand(message);
   if (command === 'boost-baslik') return handleBoostTitleCommand(message, args);
   if (command === 'boost-mesaj') return handleBoostMessageCommand(message, args);
-  if (command === 'ses-gir') return handleVoiceJoinCommand(message);
+  if (command === 'ses-gir') return handleVoiceJoinCommand(message, args);
   if (command === 'help' || command === 'yardım' || command === 'yardim') return handleHelpCommand(message);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('voice-join:')) {
+    const ownerId = interaction.customId.replace('voice-join:', '');
+    if (interaction.user.id !== ownerId) {
+      await interaction.reply({ content: '❌ Bu ses kanalı menüsü başka bir kullanıcıya ait.', ephemeral: true });
+      return;
+    }
+
+    if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageChannels)) {
+      await interaction.reply({ content: '❌ Bu komut için Kanalları Yönet izni gerekir.', ephemeral: true });
+      return;
+    }
+
+    if (!interaction.guild) {
+      await interaction.reply({ content: 'Bu seçim bir sunucuda kullanılmalıdır.', ephemeral: true });
+      return;
+    }
+
+    const channel = interaction.guild.channels.cache.get(interaction.values[0]) ||
+      await interaction.guild.channels.fetch(interaction.values[0]).catch(() => null);
+    await connectToVoiceChannel(
+      interaction.guild,
+      channel,
+      (content) => interaction.reply({ content, ephemeral: true })
+    );
+    return;
+  }
+
   if (interaction.isButton()) {
     if (!interaction.customId.startsWith('toggle:')) return;
     const guild = interaction.guild, logKey = interaction.customId.replace('toggle:', '');
