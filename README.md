@@ -1,65 +1,38 @@
 # Logbot v2
 
-Türkçe Discord sunucuları için geliştirilmiş log, rol menüsü ve özel ses odası botu.
+V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve boost bildirimlerine odaklanan Discord botu.
 
 ## Özellikler
 
-- `.setup` ile log kategorileri ve kanalları otomatik kurulur.
-- Üye, mesaj, rol, kanal, ses, moderasyon ve sunucu logları ayrı ayrı açılıp kapatılabilir.
-- `.log` ile butonlu log kontrol paneli açılır.
-- Mesaj düzenleme/silme, üye giriş/çıkış, rol ve kanal değişiklikleri, ses hareketleri, ban/kick ve sunucu olayları Türkçe embed olarak kaydedilir.
-- Davet kullanan kişi takibi, rol seçim menüsü ve özel ses odası yönetimi içerir.
-- JSON ayarları geçici dosya + yeniden adlandırma yöntemiyle atomik kaydedilir; yarım yazma riski azaltılır.
-- Prefix `BOT_PREFIX`, veri klasörü `DATA_DIR` ile değiştirilebilir.
-- SIGINT/SIGTERM ve beklenmeyen Node.js hatalarında güvenli kapanış uygulanır.
-
-## Gereksinimler
-
-- Node.js 22 LTS veya 24 LTS
-- Discord bot tokenı
-- Discord Developer Portal'da gerekli Gateway Intent izinleri
-
-## Kurulum
-
-```bash
-npm install
-cp .env.example .env
-npm start
-```
-
-Windows'ta `kurulum.bat` ve ardından `baslat.bat` kullanılabilir.
-
-## Ortam değişkenleri
-
-| Değişken | Açıklama | Varsayılan |
-|---|---|---|
-| `DISCORD_TOKEN` | Discord bot tokenı | Zorunlu |
-| `CLIENT_ID` | Discord uygulama ID'si | Önerilir |
-| `GUILD_ID` | Test sunucusu ID'si | İsteğe bağlı |
-| `BOT_PREFIX` | Komut prefix'i | `.` |
-| `DATA_DIR` | JSON veri klasörü | `./data` |
-
-Tokenı repoya commit etmeyin. Gerçek değerleri yalnızca yerel `.env` dosyasında veya deployment secret alanında tutun.
+- .setup ile log kategorisini ve kanallarını otomatik oluşturur.
+- .log ile log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.
+- Üye, mesaj, rol, kanal, ses, moderasyon, sunucu, emoji/sticker ve boost loglarını destekler.
+- V4 boost bildirimleri: kanal, GIF, başlık, mesaj ayarı ve test komutu.
+- JSON ayarları atomik biçimde kaydedilir.
+- Supervisor ve bağlantı watchdog'u uzun süreli çalışmayı destekler.
 
 ## Komutlar
 
-- `.setup` — Log kategorilerini ve kanallarını kurar.
-- `.log` — Log kontrol panelini açar.
-- `.oda` — Özel ses odası panelini kurar.
+- .setup — Log kanallarını oluşturur.
+- .log — Log kontrol panelini açar.
+- .boost-kanal #kanal — Boost bildirim kanalını ayarlar.
+- .boost-gif URL — Boost GIF'ini ayarlar; kaldırmak için .boost-gif kaldır.
+- .boost-baslik metin — Boost başlığını ayarlar.
+- .boost-mesaj metin — Boost mesajını ayarlar; | yeni satırdır.
+- .boost-test — Test bildirimi gönderir.
+- .yardım — Yardım mesajını gösterir.
 
-## Kontrol
+## Kurulum
 
-```bash
-npm run check
-```
+    npm install
+    cp .env.example .env
+    npm start
 
-## Lisans
+Windows'ta baslat.bat kullanılabilir. Gerçek tokenı yalnızca yerel .env dosyasında tut.
 
-MIT
+## Gerekli Gateway Intents
 
+- Server Members Intent
+- Message Content Intent
 
-## Uzun süreli çalışma
-
-`npm start` artık supervisor üzerinden çalışır. Bot beklenmeyen bir hata, bağlantı kopması veya Discord oturumunun geçersiz hale gelmesi durumunda kontrollü biçimde yeniden başlatılır. Yeniden başlatma aralıkları artarak en fazla 5 dakikaya çıkar; eksik ya da geçersiz token durumunda sonsuz hata döngüsü oluşturulmaz.
-
-PC'nin uykuya geçmesini engelleyin ve terminal penceresini kapatmayın.
+Presence Intent gerekli değildir.
