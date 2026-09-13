@@ -1,38 +1,52 @@
 # Logbot v2
 
-V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve boost bildirimlerine odaklanan Discord botu.
+    V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve boost bildirimlerine odaklanan Discord botu.
 
-## Özellikler
+    ## Özellikler
 
-- .setup ile log kategorisini ve kanallarını otomatik oluşturur.
-- .log ile log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.
-- Üye, mesaj, rol, kanal, ses, moderasyon, sunucu, emoji/sticker ve boost loglarını destekler.
-- V4 boost bildirimleri: kanal, GIF, başlık, mesaj ayarı ve test komutu.
-- JSON ayarları atomik biçimde kaydedilir.
-- Supervisor ve bağlantı watchdog'u uzun süreli çalışmayı destekler.
+    - ".setup" ile log kategorisini ve kanallarını otomatik oluşturur.
+    - ".log" ile log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.
+    - Üye, mesaj, rol, kanal, ses, moderasyon, sunucu, emoji/sticker ve boost loglarını destekler.
+    - Gerçek olay logları klasik embed veya PNG yerine native Discord Components V2 kartlarıyla gönderilir.
+    - Components V2 kartları avatar thumbnail’i, kompakt alan düzeni, mention güvenliği ve boost GIF’i için native medya galerisi kullanır.
+    - V4 boost bildirimleri: kanal, GIF, başlık, mesaj ayarı ve test komutu.
+    - JSON ayarları atomik biçimde kaydedilir.
+    - Supervisor ve bağlantı watchdog'u uzun süreli çalışmayı destekler.
 
-## Komutlar
+    ## Komutlar
 
-- .setup — Log kanallarını oluşturur.
-- .log — Log kontrol panelini açar.
-- .boost-kanal #kanal — Boost bildirim kanalını ayarlar.
-- .boost-gif URL — Boost GIF'ini ayarlar; kaldırmak için .boost-gif kaldır.
-- .boost-baslik metin — Boost başlığını ayarlar.
-- .boost-mesaj metin — Boost mesajını ayarlar; | yeni satırdır.
-- .boost-test — Test bildirimi gönderir.
-- .yardım — Yardım mesajını gösterir.
+    - ".setup" — Log kanallarını oluşturur.
+    - ".log" — Log kontrol panelini açar.
+    - ".boost-kanal #kanal" — Boost bildirim kanalını ayarlar.
+    - ".boost-gif URL" — Boost GIF'ini ayarlar; kaldırmak için ".boost-gif kaldır".
+    - ".boost-baslik metin" — Boost başlığını ayarlar.
+    - ".boost-mesaj metin" — Boost mesajını ayarlar; | yeni satırdır.
+    - ".boost-test" — Test bildirimi gönderir.
+    - ".yardım" — Yardım mesajını gösterir.
 
-## Kurulum
+    ## İsteğe bağlı hareketli emoji teması
 
-    npm install
-    cp .env.example .env
-    npm start
+    ").env" dosyasında ".env.example" içindeki ".env" değerlerine tam Discord emoji biçimi verilebilir:
 
-Windows'ta baslat.bat kullanılabilir. Gerçek tokenı yalnızca yerel .env dosyasında tut.
+    ").env
+    LOG_EMOJI_DELETE=<a:message_delete:123456789012345678>
+    LOG_EMOJI_BOOST=<a:boost:123456789012345678>
+    ").env
 
-## Gerekli Gateway Intents
+    Değer boş, geçersiz veya sunucuda erişilemezse güvenli Unicode emoji kullanılır.
 
-- Server Members Intent
-- Message Content Intent
+    ## Kurulum
 
-Presence Intent gerekli değildir.
+      npm install
+      cp .env.example .env
+      npm start
+
+    Windows'ta baslat.bat kullanılabilir. Gerçek tokenı yalnızca yerel ").env" dosyasında tut.
+
+    ## Gerekli Gateway Intents
+
+    - Server Members Intent
+    - Message Content Intent
+
+    Presence Intent gerekli değildir.
+    
