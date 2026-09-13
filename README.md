@@ -7,8 +7,8 @@ V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve
 - `.setup` ile log kategorisini ve kanallarını otomatik oluşturur.
 - `.log` ile log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.
 - Üye, mesaj, rol, kanal, ses, moderasyon, sunucu, emoji/sticker ve boost loglarını destekler.
-- Gerçek olay logları klasik embed veya PNG yerine native Discord Components V2 kartlarıyla gönderilir.
-- Components V2 kartları avatar thumbnail’i, kompakt alan düzeni, mention güvenliği ve boost GIF’i için native medya galerisi kullanır.
+- Gerçek olay logları embed, Components V2 veya PNG kullanmadan normal Discord mesajı olarak gönderilir.
+- `.setup`, mevcut hareketli `log_*` emojilerini otomatik bulur; eksik emojileri `assets/log-emojis/` altındaki GIF’lerden yükler.
 - V4 boost bildirimleri: kanal, GIF, başlık, mesaj ayarı ve test komutu.
 - JSON ayarları atomik biçimde kaydedilir.
 - Supervisor ve bağlantı watchdog'u uzun süreli çalışmayı destekler.
@@ -24,16 +24,13 @@ V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve
 - `.boost-test` — Test bildirimi gönderir.
 - `.yardım` — Yardım mesajını gösterir.
 
-## İsteğe bağlı hareketli emoji teması
+## Hareketli log emojileri
 
-`.env` dosyasında `.env.example` içindeki alanlara tam Discord emoji biçimi verilebilir:
+İsteğe bağlı GIF dosyalarını `assets/log-emojis/` klasörüne koy. `.setup` komutu sunucuda aynı isimde hareketli emoji varsa onu kullanır; yoksa karşılık gelen GIF’i yükler. Emoji ID’sini `.env` dosyasına eklemen gerekmez.
 
-```env
-LOG_EMOJI_DELETE=<a:message_delete:123456789012345678>
-LOG_EMOJI_BOOST=<a:boost:123456789012345678>
-```
+Desteklenen dosyalar: `delete.gif`, `edit.gif`, `join.gif`, `leave.gif`, `ban.gif`, `unban.gif`, `timeout.gif`, `role.gif`, `channel.gif`, `voice.gif`, `user.gif`, `clock.gif`.
 
-Değer boş, geçersiz veya sunucuda erişilemezse güvenli Unicode emoji kullanılır.
+Botta `CreateGuildExpressions` izni yoksa, emoji kapasitesi doluysa veya GIF eksik ya da 256 KiB’tan büyükse Unicode emoji kullanılır.
 
 ## Kurulum
 

@@ -1,7 +1,8 @@
-const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
 const { config } = require('dotenv');
-const { buildLogComponents, buildLogFallbackComponents, NO_MENTIONS } = require('./log-components');
 config();
+const { PlainLogBuilder, formatPlainLog, NO_MENTIONS } = require('./plain-log');
+const { ensureLogEmojis, shouldSuppressEmojiCreate } = require('./log-emojis');
 
 const discordToken = process.env.DISCORD_TOKEN?.trim();
 if (!discordToken || discordToken === 'your_discord_bot_token_here') {
@@ -234,7 +235,7 @@ function truncateText(value, maxLength = 1000) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
 }
 
-async function sendLog(guildId, logGroupKey, embed) {
+async function sendLog(guildId, logGroupKey, logEntry) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild || !isLogEnabled(guildId, logGroupKey)) {
     return;
@@ -250,16 +251,11 @@ async function sendLog(guildId, logGroupKey, embed) {
     return;
   }
 
-  try {
-    await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogComponents(embed, guild, logGroupKey), allowedMentions: NO_MENTIONS });
-  } catch (error) {
-    console.error('Components V2 log kartı oluşturulamadı:', error.message);
-    try {
-      await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogFallbackComponents(embed, guild, logGroupKey, error), allowedMentions: NO_MENTIONS });
-    } catch (fallbackError) {
-      console.error('Components V2 fallback gönderilemedi:', fallbackError.message);
-    }
-  }
+  const formattedLog = formatPlainLog(logEntry, guild, logGroupKey);
+  await channel.send({
+    content: formattedLog,
+    allowedMentions: NO_MENTIONS,
+  });
 }
 
 async function getAuditLogInfo(guild, targetId, eventTypes) {
@@ -294,7 +290,7 @@ function buildBoostNotificationEmbed(member) {
   const gifUrl = getBoostSetting(member.guild.id, 'gif_url');
   const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 128 });
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setColor(Colors.Red)
     .setAuthor({ name: member.user.username, iconURL: avatarUrl })
     .setTitle(title)
@@ -396,7 +392,11 @@ async function handleBoostTestCommand(message) {
   }
 
   try {
-    await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogComponents(buildBoostNotificationEmbed(message.member), message.guild, 'boost'), allowedMentions: NO_MENTIONS });
+    const formattedLog = formatPlainLog(buildBoostNotificationEmbed(message.member), message.guild, 'boost');
+    await channel.send({
+      content: formattedLog,
+      allowedMentions: NO_MENTIONS,
+    });
     await message.reply('✅ Test boost bildirimi ' + channel + ' kanalına gönderildi.');
   } catch (error) {
     console.error('Boost test gönderme hatası:', error);
@@ -502,6 +502,12 @@ async function ensureSetupInternal(guild) {
 
     saveLogChannel(guild.id, group.key, channel.id);
   }
+
+  const emojiReport = await ensureLogEmojis(guild);
+  console.log(
+    `[${guild.name}] Log emojileri: ${emojiReport.found.length} bulundu, ` +
+    `${emojiReport.created.length} yüklendi, ${emojiReport.skipped.length} atlandı.`
+  );
 }
 
 async function ensureSetup(guild) {
@@ -590,7 +596,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.GuildMemberAdd, async (member) => {
   const inviteInfo = await getInviteJoinInfo(member);
   const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setColor(Colors.Green)
     .setAuthor({ name: 'Üye Katıldı', iconURL: avatarUrl })
     .setDescription('**' + member.user.tag + '** sunucuya katıldı.')
@@ -608,7 +614,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
 client.on(Events.GuildMemberRemove, async (member) => {
   const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setColor(Colors.Red)
     .setAuthor({ name: 'Üye Ayrıldı', iconURL: avatarUrl })
     .setDescription('**' + member.user.tag + '** sunucudan ayrıldı.')
@@ -632,7 +638,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const newDisplay = newMember.displayName;
 
   if (oldDisplay !== newDisplay) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('✏️ Üye Bilgisi Değişti')
       .setColor(Colors.Orange)
       .addFields(
@@ -649,7 +655,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const timeoutChanged = oldMember.communicationDisabledUntilTimestamp !== newMember.communicationDisabledUntilTimestamp;
   if (timeoutChanged && newMember.communicationDisabledUntilTimestamp) {
     const { executor, reason } = await getAuditLogInfo(newMember.guild, newMember.user.id, AuditLogEvent.MemberUpdate);
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('⏱️ Kullanıcı Timeout Alındı')
       .setColor(Colors.Yellow)
       .addFields(
@@ -667,7 +673,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     const added = newMember.roles.cache.filter((role) => !oldMember.roles.cache.has(role.id)).map((role) => role.name);
     const removed = oldMember.roles.cache.filter((role) => !newMember.roles.cache.has(role.id)).map((role) => role.name);
 
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🎭 Rol Verme/Alma')
       .setColor(Colors.Blurple)
       .addFields(
@@ -695,7 +701,7 @@ client.on(Events.MessageDelete, async (message) => {
   const shouldHideContent = Boolean(attachment || embedPreviewUrl || directMediaUrl || message.embeds?.length);
   const visibleMessage = shouldHideContent ? 'Medya dosyası silindi' : `\`${truncateText(message.content)}\``;
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🗑️ Mesaj Silindi')
     .setColor(Colors.Red)
     .addFields(
@@ -722,7 +728,7 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
     return;
   }
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('✏️ Mesaj Düzenlendi')
     .setColor(Colors.Orange)
     .addFields(
@@ -744,7 +750,7 @@ client.on(Events.MessageBulkDelete, async (messages) => {
   }
 
   const firstMessage = collection.first();
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🧹 Toplu Mesaj Silindi')
     .setColor(Colors.Red)
     .addFields(
@@ -759,7 +765,7 @@ client.on(Events.MessageBulkDelete, async (messages) => {
 client.on(Events.GuildBanAdd, async (ban) => {
   const { executor, reason } = await getAuditLogInfo(ban.guild, ban.user.id, AuditLogEvent.MemberBanAdd);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🔨 Kullanıcı Yasaklandı')
     .setColor(Colors.Red)
     .addFields(
@@ -776,7 +782,7 @@ client.on(Events.GuildBanAdd, async (ban) => {
 client.on(Events.GuildBanRemove, async (ban) => {
   const { executor, reason } = await getAuditLogInfo(ban.guild, ban.user.id, AuditLogEvent.MemberBanRemove);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🔓 Kullanıcının Yasağı Kaldırıldı')
     .setColor(Colors.Green)
     .addFields(
@@ -800,7 +806,7 @@ client.on(Events.GuildAuditLogEntryCreate, async (auditLogEntry) => {
   const reason = auditLogEntry.reason || 'Sebep belirtilmedi';
 
   if (auditLogEntry.action === AuditLogEvent.MemberKick) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('👢 Kullanıcı Atıldı')
       .setColor(Colors.Orange)
       .addFields(
@@ -815,7 +821,7 @@ client.on(Events.GuildAuditLogEntryCreate, async (auditLogEntry) => {
   }
 
   if (auditLogEntry.action === AuditLogEvent.MemberBanAdd) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🔨 Kullanıcı Yasaklandı')
       .setColor(Colors.Red)
       .addFields(
@@ -830,7 +836,7 @@ client.on(Events.GuildAuditLogEntryCreate, async (auditLogEntry) => {
   }
 
   if (auditLogEntry.action === AuditLogEvent.MemberBanRemove) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🔓 Kullanıcının Yasağı Kaldırıldı')
       .setColor(Colors.Green)
       .addFields(
@@ -851,7 +857,7 @@ client.on(Events.GuildAuditLogEntryCreate, async (auditLogEntry) => {
       return;
     }
 
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('⏱️ Kullanıcı Timeout Alındı')
       .setColor(Colors.Yellow)
       .addFields(
@@ -868,7 +874,7 @@ client.on(Events.GuildAuditLogEntryCreate, async (auditLogEntry) => {
 client.on(Events.RoleCreate, async (role) => {
   const { executor, reason } = await getAuditLogInfo(role.guild, role.id, AuditLogEvent.RoleCreate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🟢 Rol Oluşturuldu')
     .setColor(Colors.Green)
     .addFields(
@@ -885,7 +891,7 @@ client.on(Events.RoleCreate, async (role) => {
 client.on(Events.RoleDelete, async (role) => {
   const { executor, reason } = await getAuditLogInfo(role.guild, role.id, AuditLogEvent.RoleDelete);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🔴 Rol Silindi')
     .setColor(Colors.Red)
     .addFields(
@@ -902,7 +908,7 @@ client.on(Events.RoleDelete, async (role) => {
 client.on(Events.RoleUpdate, async (oldRole, newRole) => {
   const { executor, reason } = await getAuditLogInfo(newRole.guild, newRole.id, AuditLogEvent.RoleUpdate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('✏️ Rol Değiştirildi')
     .setColor(Colors.Orange)
     .addFields(
@@ -923,7 +929,7 @@ client.on(Events.ChannelCreate, async (channel) => {
 
   const { executor, reason } = await getAuditLogInfo(channel.guild, channel.id, AuditLogEvent.ChannelCreate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🟢 Kanal Oluşturuldu')
     .setColor(Colors.Green)
     .addFields(
@@ -944,7 +950,7 @@ client.on(Events.ChannelDelete, async (channel) => {
 
   const { executor, reason } = await getAuditLogInfo(channel.guild, channel.id, AuditLogEvent.ChannelDelete);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🔴 Kanal Silindi')
     .setColor(Colors.Red)
     .addFields(
@@ -965,7 +971,7 @@ client.on(Events.ChannelUpdate, async (oldChannel, newChannel) => {
 
   const { executor, reason } = await getAuditLogInfo(newChannel.guild, newChannel.id, AuditLogEvent.ChannelUpdate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('✏️ Kanal Değiştirildi')
     .setColor(Colors.Orange)
     .addFields(
@@ -987,7 +993,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 
   if (!oldState.channelId && newState.channelId) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🔊 Ses Kanalına Girdi')
       .setColor(Colors.Green)
       .addFields(
@@ -1001,7 +1007,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 
   if (oldState.channelId && !newState.channelId) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🔇 Ses Kanalından Ayrıldı')
       .setColor(Colors.Red)
       .addFields(
@@ -1015,7 +1021,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 
   if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-    const embed = new EmbedBuilder()
+    const embed = new PlainLogBuilder()
       .setTitle('🔄 Ses Kanalı Değişti')
       .setColor(Colors.Orange)
       .addFields(
@@ -1036,7 +1042,7 @@ client.on(Events.GuildUpdate, async (oldGuild, newGuild) => {
 
   const { executor, reason } = await getAuditLogInfo(newGuild, newGuild.id, AuditLogEvent.GuildUpdate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('⚙️ Sunucu Değiştirildi')
     .setColor(Colors.Blurple)
     .addFields(
@@ -1051,9 +1057,13 @@ client.on(Events.GuildUpdate, async (oldGuild, newGuild) => {
 });
 
 client.on(Events.GuildEmojiCreate, async (emoji) => {
+  if (shouldSuppressEmojiCreate(emoji)) {
+    return;
+  }
+
   const { executor, reason } = await getAuditLogInfo(emoji.guild, emoji.id, AuditLogEvent.EmojiCreate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('😀 Emoji Oluşturuldu')
     .setColor(Colors.Green)
     .addFields(
@@ -1070,7 +1080,7 @@ client.on(Events.GuildEmojiCreate, async (emoji) => {
 client.on(Events.GuildEmojiDelete, async (emoji) => {
   const { executor, reason } = await getAuditLogInfo(emoji.guild, emoji.id, AuditLogEvent.EmojiDelete);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('😀 Emoji Silindi')
     .setColor(Colors.Red)
     .addFields(
@@ -1087,7 +1097,7 @@ client.on(Events.GuildEmojiDelete, async (emoji) => {
 client.on(Events.GuildStickerCreate, async (sticker) => {
   const { executor, reason } = await getAuditLogInfo(sticker.guild, sticker.id, AuditLogEvent.StickerCreate);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🖼️ Sticker Oluşturuldu')
     .setColor(Colors.Green)
     .addFields(
@@ -1104,7 +1114,7 @@ client.on(Events.GuildStickerCreate, async (sticker) => {
 client.on(Events.GuildStickerDelete, async (sticker) => {
   const { executor, reason } = await getAuditLogInfo(sticker.guild, sticker.id, AuditLogEvent.StickerDelete);
 
-  const embed = new EmbedBuilder()
+  const embed = new PlainLogBuilder()
     .setTitle('🖼️ Sticker Silindi')
     .setColor(Colors.Red)
     .addFields(
