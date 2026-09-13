@@ -19,15 +19,15 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
         const channel = guild?.channels?.cache?.get(id);
         return '#' + (channel?.name || 'kanal');
       })
-      .replace(/[\\x60*_~]/g, '')
-      .replace(/\\p{Extended_Pictographic}/gu, '')
-      .replace(/\\uFE0F/g, '')
-      .replace(/\\s+/g, ' ')
+      .replace(/[\x60*_~]/g, '')
+      .replace(/\p{Extended_Pictographic}/gu, '')
+      .replace(/\uFE0F/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
     }
 
     function stripLeadingIcon(value) {
-    return value.replace(/^[^\\p{L}\\p{N}]+/u, '').trim() || 'Sunucu Logu';
+    return value.replace(/^[^\p{L}\p{N}]+/u, '').trim() || 'Sunucu Logu';
     }
 
     function wrapText(ctx, value, maxWidth, maxLines = 3, guild) {
