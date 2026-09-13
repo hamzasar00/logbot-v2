@@ -1,7 +1,7 @@
 {
   "name": "logbot-v2",
   "version": "2.0.0",
-  "description": "Geliştirilmiş Türkçe Discord log, rol menüsü ve özel ses odası botu.",
+  "description": "V4 log ve boost bildirimleri için özel görsel kart Discord botu.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/runner.js",
@@ -16,6 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.9",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5"
   },
