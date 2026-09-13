@@ -8,22 +8,30 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
     const MUTED = '#9aa5b5';
     const DIVIDER = '#2b3442';
 
-    function cleanText(value) {
+    function cleanText(value, guild) {
     return String(value ?? '')
       .replace(/<a?:[^:>]+:\d+>/g, '')
-      .replace(/<@!?\d+>/g, '@kullanıcı')
-      .replace(/<#\d+>/g, '#kanal')
-      .replace(/[\x60*_~]/g, '')
-      .replace(/\s+/g, ' ')
+      .replace(/<@!?([0-9]+)>/g, (_, id) => {
+        const member = guild?.members?.cache?.get(id);
+        return '@' + (member?.displayName || member?.user?.username || 'Üye');
+      })
+      .replace(/<#([0-9]+)>/g, (_, id) => {
+        const channel = guild?.channels?.cache?.get(id);
+        return '#' + (channel?.name || 'kanal');
+      })
+      .replace(/[\\x60*_~]/g, '')
+      .replace(/\\p{Extended_Pictographic}/gu, '')
+      .replace(/\\uFE0F/g, '')
+      .replace(/\\s+/g, ' ')
       .trim();
     }
 
     function stripLeadingIcon(value) {
-    return value.replace(/^[^\p{L}\p{N}]+/u, '').trim() || 'Sunucu Logu';
+    return value.replace(/^[^\\p{L}\\p{N}]+/u, '').trim() || 'Sunucu Logu';
     }
 
-    function wrapText(ctx, value, maxWidth, maxLines = 4) {
-    const words = cleanText(value).split(' ').filter(Boolean);
+    function wrapText(ctx, value, maxWidth, maxLines = 3, guild) {
+    const words = cleanText(value, guild).split(' ').filter(Boolean);
     if (!words.length) return [''];
     const lines = [];
     let current = '';
@@ -60,28 +68,52 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
     try { return await loadImage(url); } catch { return null; }
     }
 
-    async function renderLogCard(embed) {
+    function makeRows(fields) {
+    const rows = [];
+    let inlineRow = [];
+    const flushInline = () => {
+      if (inlineRow.length) rows.push(inlineRow);
+      inlineRow = [];
+    };
+    for (const field of fields) {
+      if (field.inline) {
+        inlineRow.push(field);
+        if (inlineRow.length === 2) flushInline();
+      } else {
+        flushInline();
+        rows.push([field]);
+      }
+    }
+    flushInline();
+    return rows;
+    }
+
+    async function renderLogCard(embed, guild) {
     const data = embed?.data || embed || {};
-    const title = stripLeadingIcon(cleanText(data.author?.name || data.title || 'Sunucu Logu'));
-    const description = cleanText(data.description);
-    const fields = Array.isArray(data.fields) ? data.fields : [];
-    const footer = cleanText(data.footer?.text || 'Log Sistemi');
+    const title = stripLeadingIcon(cleanText(data.author?.name || data.title || 'Sunucu Logu', guild));
+    const description = cleanText(data.description, guild);
+    const footer = cleanText(data.footer?.text || 'Log Sistemi', guild);
     const accent = colorToHex(data.color);
     const avatar = await loadAvatar(data.author?.icon_url || data.thumbnail?.url);
     const measure = createCanvas(WIDTH, 100).getContext('2d');
-    measure.font = '24px Arial';
-    const descriptionLines = description ? wrapText(measure, description, WIDTH - PAD * 2 - 30, 3) : [];
-    const fieldRows = fields.map((field) => {
-      measure.font = 'bold 18px Arial';
-      const label = cleanText(field.name || 'Bilgi');
-      measure.font = '22px Arial';
-      const valueLines = wrapText(measure, field.value || 'Belirtilmedi', WIDTH - PAD * 2 - 44, 3);
-      return { label, valueLines };
+    measure.font = '22px Arial';
+    const descriptionLines = description ? wrapText(measure, description, WIDTH - PAD * 2 - 30, 3, guild) : [];
+    const fields = (Array.isArray(data.fields) ? data.fields : [])
+      .map((field) => ({
+        label: stripLeadingIcon(cleanText(field.name || 'Bilgi', guild)),
+        valueLines: wrapText(measure, field.value || 'Belirtilmedi', WIDTH - PAD * 2 - 44, 3, guild),
+        inline: Boolean(field.inline),
+      }))
+      .filter((field) => !/^(tarih|zaman|date|timestamp)$/i.test(field.label));
+    const rows = makeRows(fields);
+    const rowHeights = rows.map((row) => {
+      const maxLines = Math.max(...row.map((field) => field.valueLines.length));
+      return 34 + maxLines * 28 + 24;
     });
-    const fieldHeight = fieldRows.reduce((total, row) => total + 34 + row.valueLines.length * 28 + 24, 0);
-    const height = Math.max(270, 158 + descriptionLines.length * 31 + fieldHeight);
+    const height = Math.max(270, 158 + descriptionLines.length * 31 + rowHeights.reduce((sum, value) => sum + value, 0));
     const canvas = createCanvas(WIDTH, height);
     const ctx = canvas.getContext('2d');
+
     ctx.fillStyle = BACKGROUND;
     ctx.fillRect(0, 0, WIDTH, height);
     ctx.fillStyle = PANEL;
@@ -90,6 +122,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
     ctx.fillStyle = accent;
     roundRect(ctx, 18, 18, 9, height - 36, 5);
     ctx.fill();
+
     ctx.fillStyle = TEXT;
     ctx.font = 'bold 32px Arial';
     ctx.fillText(title, PAD, 76);
@@ -106,10 +139,11 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
       ctx.arc(WIDTH - 92, 72, 42, 0, Math.PI * 2);
       ctx.stroke();
     }
+
     let y = 122;
     if (descriptionLines.length) {
       ctx.fillStyle = MUTED;
-      ctx.font = '24px Arial';
+      ctx.font = '22px Arial';
       for (const line of descriptionLines) { ctx.fillText(line, PAD, y); y += 31; }
       y += 12;
     }
@@ -120,16 +154,24 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
     ctx.lineTo(WIDTH - PAD, y);
     ctx.stroke();
     y += 28;
-    for (const row of fieldRows) {
-      ctx.fillStyle = MUTED;
-      ctx.font = 'bold 17px Arial';
-      ctx.fillText(row.label.toUpperCase(), PAD, y);
-      y += 26;
-      ctx.fillStyle = TEXT;
-      ctx.font = '22px Arial';
-      for (const line of row.valueLines) { ctx.fillText(line, PAD, y); y += 28; }
-      y += 22;
+
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const row = rows[rowIndex];
+      const cellWidth = (WIDTH - PAD * 2 - (row.length - 1) * 34) / row.length;
+      for (let cellIndex = 0; cellIndex < row.length; cellIndex += 1) {
+        const field = row[cellIndex];
+        const x = PAD + cellIndex * (cellWidth + 34);
+        ctx.fillStyle = MUTED;
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText(field.label.toLocaleUpperCase('tr-TR'), x, y);
+        ctx.fillStyle = TEXT;
+        ctx.font = '22px Arial';
+        let valueY = y + 26;
+        for (const line of field.valueLines) { ctx.fillText(line, x, valueY); valueY += 28; }
+      }
+      y += rowHeights[rowIndex];
     }
+
     const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString('tr-TR') : new Date().toLocaleString('tr-TR');
     ctx.fillStyle = MUTED;
     ctx.font = '16px Arial';
