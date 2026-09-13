@@ -1258,6 +1258,15 @@ client.on('shardReconnecting', (shardId) => {
   console.warn(`Discord bağlantısı yeniden kuruluyor (shard ${shardId})...`);
 });
 
+client.on('shardResume', (replayedEvents, shardId) => {
+  lastReadyAt = Date.now();
+  console.log(`Discord bağlantısı yeniden kuruldu (shard ${shardId}, ${replayedEvents} olay işlendi).`);
+});
+
+client.on('shardError', (error, shardId) => {
+  console.error(`Discord shard hatası (shard ${shardId}):`, error.message);
+});
+
 client.on('invalidated', () => {
   console.error('Discord oturumu geçersiz hale geldi; supervisor yeniden başlatacak.');
   void shutdown('invalidated');
