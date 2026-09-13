@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
 const { config } = require('dotenv');
+const { renderLogCard } = require('./log-card');
 config();
 
 const discordToken = process.env.DISCORD_TOKEN?.trim();
@@ -249,7 +250,13 @@ async function sendLog(guildId, logGroupKey, embed) {
     return;
   }
 
-  await channel.send({ embeds: [embed] });
+  try {
+    const card = await renderLogCard(embed);
+    await channel.send({ files: [{ attachment: card, name: 'log-card.png' }] });
+  } catch (error) {
+    console.error('Özel log kartı oluşturulamadı:', error.message);
+    await channel.send({ embeds: [embed] });
+  }
 }
 
 async function getAuditLogInfo(guild, targetId, eventTypes) {
