@@ -633,7 +633,7 @@ async function handleHelpCommand(message) {
 
 client.on(Events.ClientReady, async () => {
   lastReadyAt = Date.now();
-  client.user.setPresence({ status: 'online', activities: [{ name: 'Logları izliyor', type: 3 }] });
+  client.user.setPresence({ status: 'dnd', activities: [{ name: 'Logları izliyor', type: 3 }] });
   console.log('Bot aktif: ' + client.user.tag + ' | Sunucu sayısı: ' + client.guilds.cache.size);
   for (const guild of client.guilds.cache.values()) { try { await updateGuildInviteSnapshot(guild); } catch (error) { console.error('[' + guild.name + '] başlangıç ayarı tamamlanamadı:', error.message); } }
   console.log('Discord bağlantısı hazır. Prefix komutları kullanılabilir.');
