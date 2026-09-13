@@ -47,6 +47,7 @@ const rest = new REST({ version: '10' }).setToken(discordToken);
 const inviteSnapshots = new Map();
 const inviteTotals = new Map();
 const inFlightGuildTasks = new Map();
+let lastReadyAt = 0;
 
 function runGuildTaskOnce(taskKey, task) {
   const activeTask = inFlightGuildTasks.get(taskKey);
@@ -1160,6 +1161,7 @@ async function handleHelpCommand(message) {
 }
 
 client.on(Events.ClientReady, async () => {
+  lastReadyAt = Date.now();
   client.user.setPresence({
     status: 'online',
     activities: [{ name: 'Darth.vfx', type: 3 }],
@@ -2068,7 +2070,8 @@ client.on('shardReconnecting', (shardId) => {
 });
 
 client.on('invalidated', () => {
-  console.error('Discord oturumu geçersiz hale geldi. Botu yeniden başlatın.');
+  console.error('Discord oturumu geçersiz hale geldi; supervisor yeniden başlatacak.');
+  void shutdown('invalidated');
 });
 
 let isShuttingDown = false;
@@ -2080,7 +2083,8 @@ async function shutdown(signal) {
   try {
     client.destroy();
   } finally {
-    process.exit(0);
+    const exitCode = ['uncaughtException', 'invalidated', 'connection-watchdog'].includes(signal) ? 1 : 0;
+    process.exit(exitCode);
   }
 }
 
@@ -2094,7 +2098,17 @@ process.on('uncaughtException', (error) => {
   void shutdown('uncaughtException');
 });
 
+const connectionWatchdog = setInterval(() => {
+  const disconnectedTooLong = lastReadyAt > 0 && !client.isReady() && Date.now() - lastReadyAt > 120000;
+  if (disconnectedTooLong) {
+    console.error('Discord bağlantısı 120 saniyeden uzun süredir hazır değil; supervisor yeniden başlatacak.');
+    void shutdown('connection-watchdog');
+  }
+}, 60000);
+connectionWatchdog.unref?.();
+
 client.login(discordToken).catch((error) => {
   console.error('Bot giriş başarısız:', error.message);
-  process.exit(1);
+  const isCredentialError = /invalid token|token.*invalid|4004/i.test(error.message || '');
+  process.exit(isCredentialError ? 78 : 1);
 });

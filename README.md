@@ -56,3 +56,10 @@ npm run check
 ## Lisans
 
 MIT
+
+
+## Uzun süreli çalışma
+
+`npm start` artık supervisor üzerinden çalışır. Bot beklenmeyen bir hata, bağlantı kopması veya Discord oturumunun geçersiz hale gelmesi durumunda kontrollü biçimde yeniden başlatılır. Yeniden başlatma aralıkları artarak en fazla 5 dakikaya çıkar; eksik ya da geçersiz token durumunda sonsuz hata döngüsü oluşturulmaz.
+
+PC'nin uykuya geçmesini engelleyin ve terminal penceresini kapatmayın.
