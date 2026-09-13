@@ -22,6 +22,7 @@ V4 dalındaki log altyapısı temel alınarak hazırlanmış, sunucu logları ve
 - `.boost-baslik metin` — Boost başlığını ayarlar.
 - `.boost-mesaj metin` — Boost mesajını ayarlar; `|` yeni satırdır.
 - `.boost-test` — Test bildirimi gönderir.
+- `.ses-gir #kanal` — Botu seçilen ses veya Stage kanalına bağlar.
 - `.yardım` — Yardım mesajını gösterir.
 
 ## Hareketli log emojileri

@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
+const { entersState, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const { config } = require('dotenv');
 config();
 const { PlainLogBuilder, formatPlainLog, NO_MENTIONS } = require('./plain-log');
@@ -310,6 +311,51 @@ function hasManageBoostPermission(message) {
     message.member?.permissions?.has(PermissionsBitField.Flags.ManageChannels);
 }
 
+async function handleVoiceJoinCommand(message) {
+  if (!message.guild) {
+    await message.reply('Bu komut bir sunucuda kullanılmalıdır.');
+    return;
+  }
+
+  if (!message.member?.permissions?.has(PermissionsBitField.Flags.ManageChannels)) {
+    await message.reply('❌ Bu komut için Kanalları Yönet izni gerekir.');
+    return;
+  }
+
+  const channel = message.mentions.channels.first();
+  const isVoiceChannel = channel &&
+    [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type);
+
+  if (!isVoiceChannel) {
+    await message.reply('Kullanım: `.ses-gir #ses-kanalı`');
+    return;
+  }
+
+  const botPermissions = channel.permissionsFor(message.guild.members.me);
+  if (!botPermissions?.has(PermissionsBitField.Flags.ViewChannel) ||
+      !botPermissions?.has(PermissionsBitField.Flags.Connect)) {
+    await message.reply('❌ Botun seçilen kanalı görme veya kanala bağlanma izni yok.');
+    return;
+  }
+
+  const connection = joinVoiceChannel({
+    channelId: channel.id,
+    guildId: message.guild.id,
+    adapterCreator: message.guild.voiceAdapterCreator,
+    selfDeaf: true,
+    selfMute: true,
+  });
+
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+    await message.reply(`✅ ${channel} ses kanalına bağlandım.`);
+  } catch (error) {
+    connection.destroy();
+    console.error('Ses kanalına bağlanma hatası:', error.message);
+    await message.reply('❌ Ses kanalına bağlanamadım. Kanal izinlerini kontrol et.');
+  }
+}
+
 async function handleBoostChannelCommand(message) {
   if (!message.guild) {
     await message.reply('Bu komut bir sunucuda kullanılmalıdır.');
@@ -546,6 +592,7 @@ function buildHelpEmbed() {
     { name: '.boost-baslik metin', value: 'Boost bildirim başlığını ayarlar.', inline: false },
     { name: '.boost-mesaj metin', value: 'Boost bildirim mesajını ayarlar. | işareti yeni satır oluşturur.', inline: false },
     { name: '.boost-test', value: 'Mevcut ayarlarla test boost bildirimi gönderir.', inline: false },
+    { name: '.ses-gir #kanal', value: 'Botu seçilen ses veya Stage kanalına bağlar.', inline: false },
     { name: '.yardım', value: 'Bu yardım mesajını gösterir.', inline: false },
   );
 }
@@ -573,6 +620,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (command === 'boost-test') return handleBoostTestCommand(message);
   if (command === 'boost-baslik') return handleBoostTitleCommand(message, args);
   if (command === 'boost-mesaj') return handleBoostMessageCommand(message, args);
+  if (command === 'ses-gir') return handleVoiceJoinCommand(message);
   if (command === 'help' || command === 'yardım' || command === 'yardim') return handleHelpCommand(message);
 });
 
