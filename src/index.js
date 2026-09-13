@@ -1202,6 +1202,10 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     const embed = new PlainLogBuilder()
       .setTitle('🔊 Ses Kanalına Girdi')
       .setColor(Colors.Green)
+      .setAuthor({
+        name: newState.member?.user?.tag || newState.member?.user?.username || 'Kullanıcı',
+        iconURL: newState.member?.user?.displayAvatarURL({ extension: 'png', size: 128 }),
+      })
       .addFields(
         { name: '👤 Kullanıcı', value: `<@${newState.member?.user?.id ?? '0'}>`, inline: true },
         { name: '📍 Kanal', value: `<#${newState.channelId}>`, inline: true },
@@ -1216,6 +1220,10 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     const embed = new PlainLogBuilder()
       .setTitle('🔇 Ses Kanalından Ayrıldı')
       .setColor(Colors.Red)
+      .setAuthor({
+        name: oldState.member?.user?.tag || oldState.member?.user?.username || 'Kullanıcı',
+        iconURL: oldState.member?.user?.displayAvatarURL({ extension: 'png', size: 128 }),
+      })
       .addFields(
         { name: '👤 Kullanıcı', value: `<@${oldState.member?.user?.id ?? '0'}>`, inline: true },
         { name: '📍 Kanal', value: `<#${oldState.channelId}>`, inline: true },
@@ -1230,6 +1238,10 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     const embed = new PlainLogBuilder()
       .setTitle('🔄 Ses Kanalı Değişti')
       .setColor(Colors.Orange)
+      .setAuthor({
+        name: newState.member?.user?.tag || newState.member?.user?.username || 'Kullanıcı',
+        iconURL: newState.member?.user?.displayAvatarURL({ extension: 'png', size: 128 }),
+      })
       .addFields(
         { name: '👤 Kullanıcı', value: `<@${newState.member?.user?.id ?? '0'}>`, inline: true },
         { name: '🕘 Eski Kanal', value: `<#${oldState.channelId}>`, inline: true },

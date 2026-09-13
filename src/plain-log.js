@@ -84,42 +84,67 @@ function getEventEmojiKey(title, logGroupKey) {
   return 'user';
 }
 
-function getFieldEmojiKey(label) {
-  if (/Tarih|Zaman/.test(label)) return 'clock';
-  if (/Kullanıcı|Üye|Davet Eden|Oluşturan|Silen|Değiştiren|Yetkili/.test(label)) return 'user';
-  if (/Rol/.test(label)) return 'role';
-  if (/Kanal/.test(label)) return 'channel';
-  return null;
-}
-
 function truncateContent(value, maxLength = 2000) {
   const text = String(value ?? '');
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
+function formatQuotedValue(value) {
+  return String(value ?? 'Belirtilmedi')
+    .split('\n')
+    .map((line, index) => `${index === 0 ? '> ' : '>   '}${line}`)
+    .join('\n');
+}
+
+function getAvatarUrl(data, guild) {
+  if (data.author?.icon_url) {
+    return data.author.icon_url;
+  }
+
+  if (data.thumbnail?.url) {
+    return data.thumbnail.url;
+  }
+
+  const fields = Array.isArray(data.fields) ? data.fields : [];
+  const mention = fields
+    .map((field) => String(field.value ?? '').match(/<@!?(\d+)>/)?.[1])
+    .find(Boolean);
+
+  if (!mention) {
+    return null;
+  }
+
+  const member = guild?.members?.cache?.get(mention);
+  const user = member?.user || guild?.client?.users?.cache?.get(mention);
+  return user?.displayAvatarURL({ extension: 'png', size: 128 }) || null;
+}
+
 function formatPlainLog(logEntry, guild, logGroupKey) {
   const data = logEntry?.data || logEntry || {};
   const title = cleanLabel(data.title || data.author?.name || 'Sunucu Logu');
   const lines = [`${getLogEmoji(guild, getEventEmojiKey(title, logGroupKey))} **${title}**`];
+  const avatarUrl = getAvatarUrl(data, guild);
+
+  if (avatarUrl) {
+    lines.push(`> **Avatar:** [Görüntüle](${avatarUrl})`);
+  }
 
   if (data.description) {
-    lines.push('', String(data.description));
+    lines.push('', ...String(data.description).split('\n').map((line) => `> ${line}`));
   }
 
   for (const field of Array.isArray(data.fields) ? data.fields : []) {
     const label = cleanLabel(field.name) || 'Bilgi';
-    const emojiKey = getFieldEmojiKey(label);
-    const emojiLead = emojiKey ? `${getLogEmoji(guild, emojiKey)} ` : '';
-    lines.push(`${emojiLead}**${label}:** ${String(field.value ?? 'Belirtilmedi')}`);
+    lines.push(formatQuotedValue(`**${label}:** ${String(field.value ?? 'Belirtilmedi')}`));
   }
 
   if (data.image?.url) {
-    lines.push('', String(data.image.url));
+    lines.push('', `> ${String(data.image.url)}`);
   }
 
   if (data.timestamp && !lines.some((line) => /\*\*(Tarih|Zaman):\*\*/.test(line))) {
-    lines.push(`${getLogEmoji(guild, 'clock')} **Tarih:** ${new Date(data.timestamp).toLocaleString('tr-TR')}`);
+    lines.push(formatQuotedValue(`**Tarih:** ${new Date(data.timestamp).toLocaleString('tr-TR')}`));
   }
 
   return truncateContent(lines.join('\n'));
