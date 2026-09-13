@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, SlashCommandBuilder, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
 const { entersState, getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const { config } = require('dotenv');
 config();
@@ -40,7 +40,6 @@ const client = new Client({
   ],
 });
 
-const PREFIX = process.env.BOT_PREFIX?.trim() || '.';
 const LOG_DEFINITIONS = getLogDefinitions();
 const rest = new REST({ version: '10' }).setToken(discordToken);
 const inviteSnapshots = new Map();
@@ -138,23 +137,83 @@ async function getInviteJoinInfo(member) {
   }
 }
 
-async function deleteOldDiscordCommands() {
+const SLASH_COMMANDS = [
+  new SlashCommandBuilder()
+    .setName('setup')
+    .setDescription('Log kategorisini ve kanallarını oluşturur.'),
+  new SlashCommandBuilder()
+    .setName('log')
+    .setDescription('Log kontrol panelini açar.'),
+  new SlashCommandBuilder()
+    .setName('boost-kanal')
+    .setDescription('Boost bildirim kanalını ayarlar.')
+    .addChannelOption((option) => option
+      .setName('kanal')
+      .setDescription('Boost bildirimlerinin gönderileceği metin kanalı.')
+      .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('boost-gif')
+    .setDescription('Boost GIF bağlantısını ayarlar veya kaldırır.')
+    .addStringOption((option) => option
+      .setName('url')
+      .setDescription('HTTP/HTTPS GIF bağlantısı veya kaldır')
+      .setRequired(false))
+    .addAttachmentOption((option) => option
+      .setName('dosya')
+      .setDescription('GIF dosyası')
+      .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('boost-baslik')
+    .setDescription('Boost bildirim başlığını ayarlar.')
+    .addStringOption((option) => option
+      .setName('metin')
+      .setDescription('Yeni boost başlığı.')
+      .setMaxLength(256)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('boost-mesaj')
+    .setDescription('Boost bildirim mesajını ayarlar.')
+    .addStringOption((option) => option
+      .setName('metin')
+      .setDescription('| işareti yeni satır oluşturur.')
+      .setMaxLength(4096)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('boost-test')
+    .setDescription('Mevcut ayarlarla test boost bildirimi gönderir.'),
+  new SlashCommandBuilder()
+    .setName('ses-gir')
+    .setDescription('Botu bir ses veya Stage kanalına bağlar.')
+    .addChannelOption((option) => option
+      .setName('kanal')
+      .setDescription('Bağlanılacak ses veya Stage kanalı.')
+      .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+      .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('yardim')
+    .setDescription('Bot komutlarını gösterir.'),
+].map((command) => command.toJSON());
+
+async function registerSlashCommands() {
   const clientId = process.env.CLIENT_ID || client.user?.id;
   if (!clientId) {
-    console.log('CLIENT_ID bulunamadığı için eski slash komutları silinemedi.');
+    console.log('CLIENT_ID bulunamadığı için slash komutları kaydedilemedi.');
     return;
   }
 
   try {
     if (process.env.GUILD_ID) {
-      await rest.put(Routes.applicationGuildCommands(clientId, process.env.GUILD_ID), { body: [] });
-      console.log('Sunucu bazlı eski slash komutları silindi.');
+      await rest.put(Routes.applicationGuildCommands(clientId, process.env.GUILD_ID), { body: SLASH_COMMANDS });
+      await rest.put(Routes.applicationCommands(clientId), { body: [] });
+      console.log(`${SLASH_COMMANDS.length} slash komutu test sunucusuna kaydedildi; eski global komutlar temizlendi.`);
+      return;
     }
 
-    await rest.put(Routes.applicationCommands(clientId), { body: [] });
-    console.log('Global eski slash komutları silindi.');
+    await rest.put(Routes.applicationCommands(clientId), { body: SLASH_COMMANDS });
+    console.log(`${SLASH_COMMANDS.length} slash komutu global olarak kaydedildi.`);
   } catch (error) {
-    console.error('Eski slash komutları silinemedi:', error.message);
+    console.error('Slash komutları kaydedilemedi:', error.message);
   }
 }
 
@@ -386,7 +445,7 @@ async function handleVoiceJoinCommand(message, args) {
 
   if (!isVoiceChannel(channel)) {
     await message.reply({
-      content: 'Ses kanalını aşağıdaki menüden seç veya kanal ID’si kullan: `.ses-gir 123456789012345678`',
+      content: 'Ses kanalını aşağıdaki menüden seç veya kanal seçeneğini kullan: `/ses-gir kanal:...`',
       components: [createVoiceChannelPicker(message.author.id)],
     });
     return;
@@ -408,7 +467,7 @@ async function handleBoostChannelCommand(message) {
 
   const channel = message.mentions.channels.first();
   if (!channel || !channel.isTextBased()) {
-    await message.reply('Kullanım: .boost-kanal #kanal');
+    await message.reply('Kullanım: `/boost-kanal kanal:#kanal`');
     return;
   }
 
@@ -436,7 +495,7 @@ async function handleBoostGifCommand(message, args) {
 
   const gifUrl = args[0] || message.attachments.first()?.url;
   if (!gifUrl) {
-    await message.reply('Kullanım: .boost-gif https://... veya GIF dosyasını mesaja ekle.');
+    await message.reply('Kullanım: `/boost-gif url:https://...` veya `dosya` seçeneği.');
     return;
   }
 
@@ -465,14 +524,14 @@ async function handleBoostTestCommand(message) {
 
   const channelId = getLogChannel(message.guild.id, 'boost');
   if (!channelId) {
-    await message.reply('❌ Önce .boost-kanal #kanal ile boost kanalını ayarla.');
+    await message.reply('❌ Önce `/boost-kanal` ile boost kanalını ayarla.');
     return;
   }
 
   const channel = message.guild.channels.cache.get(channelId) ||
     await message.guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased()) {
-    await message.reply('❌ Kayıtlı boost kanalı bulunamadı. .boost-kanal #kanal ile tekrar ayarla.');
+    await message.reply('❌ Kayıtlı boost kanalı bulunamadı. `/boost-kanal` ile tekrar ayarla.');
     return;
   }
 
@@ -501,7 +560,7 @@ async function handleBoostTitleCommand(message, args) {
 
   const title = args.join(' ').trim();
   if (!title) {
-    await message.reply('Kullanım: .boost-baslik Thank You Buddy');
+    await message.reply('Kullanım: `/boost-baslik metin:Thank You Buddy`');
     return;
   }
 
@@ -521,7 +580,7 @@ async function handleBoostMessageCommand(message, args) {
 
   const text = args.join(' ').trim();
   if (!text) {
-    await message.reply('Kullanım: .boost-mesaj Welcome To Real CLR LEAK | LEAK Buddy');
+    await message.reply('Kullanım: `/boost-mesaj metin:Welcome To Real CLR LEAK | LEAK Buddy`');
     return;
   }
 
@@ -603,7 +662,7 @@ async function ensureSetup(guild) {
 async function handleSetupCommand(message) {
   if (!message.guild) { await message.reply('Bu komut bir sunucuda kullanılmalıdır.'); return; }
   await ensureSetup(message.guild);
-  const embed = new EmbedBuilder().setTitle('✅ Log Sistemi Ayarlandı').setDescription('LOGLAR kategorisi ve log kanalları hazırlandı. Boost bildirimleri için .boost-kanal #kanal komutunu kullanabilirsin.').setColor(Colors.Green).addFields({ name: '📁 Hazırlanan kanallar', value: 'uye-log, mesaj-log, rol-log, kanal-log, ses-log, moderasyon-log, sunucu-log ve boost-log', inline: false });
+  const embed = new EmbedBuilder().setTitle('✅ Log Sistemi Ayarlandı').setDescription('LOGLAR kategorisi ve log kanalları hazırlandı. Boost bildirimleri için `/boost-kanal` komutunu kullanabilirsin.').setColor(Colors.Green).addFields({ name: '📁 Hazırlanan kanallar', value: 'uye-log, mesaj-log, rol-log, kanal-log, ses-log, moderasyon-log, sunucu-log ve boost-log', inline: false });
   await message.reply({ embeds: [embed] });
 }
 
@@ -624,15 +683,15 @@ async function handleLogCommand(message) {
 
 function buildHelpEmbed() {
   return new EmbedBuilder().setTitle('🆘 Log Botu Yardım').setDescription('Bu bot sunucudaki olayları ayrı log kanallarına kaydeder ve boost bildirimleri gönderir.').setColor(Colors.Blurple).addFields(
-    { name: '.setup', value: 'Log kategorisini ve tüm log kanallarını oluşturur.', inline: false },
-    { name: '.log', value: 'Log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.', inline: false },
-    { name: '.boost-kanal #kanal', value: 'Boost bildirimlerinin gönderileceği kanalı ayarlar.', inline: false },
-    { name: '.boost-gif bağlantı', value: 'Boost GIF bağlantısını ayarlar; kaldırmak için .boost-gif kaldır yaz.', inline: false },
-    { name: '.boost-baslik metin', value: 'Boost bildirim başlığını ayarlar.', inline: false },
-    { name: '.boost-mesaj metin', value: 'Boost bildirim mesajını ayarlar. | işareti yeni satır oluşturur.', inline: false },
-    { name: '.boost-test', value: 'Mevcut ayarlarla test boost bildirimi gönderir.', inline: false },
-    { name: '.ses-gir #kanal', value: 'Botu seçilen ses veya Stage kanalına bağlar.', inline: false },
-    { name: '.yardım', value: 'Bu yardım mesajını gösterir.', inline: false },
+    { name: '/setup', value: 'Log kategorisini ve tüm log kanallarını oluşturur.', inline: false },
+    { name: '/log', value: 'Log türlerini açıp kapatabileceğin ve kanal seçebileceğin paneli açar.', inline: false },
+    { name: '/boost-kanal kanal:#kanal', value: 'Boost bildirimlerinin gönderileceği kanalı ayarlar.', inline: false },
+    { name: '/boost-gif url:bağlantı', value: 'Boost GIF bağlantısını ayarlar; kaldırmak için url alanına kaldır yaz.', inline: false },
+    { name: '/boost-baslik metin:metin', value: 'Boost bildirim başlığını ayarlar.', inline: false },
+    { name: '/boost-mesaj metin:metin', value: 'Boost bildirim mesajını ayarlar. | işareti yeni satır oluşturur.', inline: false },
+    { name: '/boost-test', value: 'Mevcut ayarlarla test boost bildirimi gönderir.', inline: false },
+    { name: '/ses-gir kanal:#kanal', value: 'Botu seçilen ses veya Stage kanalına bağlar.', inline: false },
+    { name: '/yardim', value: 'Bu yardım mesajını gösterir.', inline: false },
   );
 }
 
@@ -640,30 +699,63 @@ async function handleHelpCommand(message) {
   await message.reply({ embeds: [buildHelpEmbed()] });
 }
 
+function createSlashMessage(interaction) {
+  const channel = interaction.options.getChannel('kanal');
+  const gifUrl = interaction.options.getString('url');
+  const gifFile = interaction.options.getAttachment('dosya');
+  const text = interaction.options.getString('metin');
+
+  return {
+    guild: interaction.guild,
+    member: interaction.member,
+    author: interaction.user,
+    reply: (payload) => interaction.reply(payload),
+    mentions: {
+      channels: {
+        first: () => channel,
+      },
+    },
+    attachments: {
+      first: () => gifFile || (gifUrl ? { url: gifUrl } : null),
+    },
+  };
+}
+
+function getSlashCommandArgs(interaction) {
+  const values = [];
+  for (const optionName of ['url', 'metin']) {
+    const value = interaction.options.getString(optionName);
+    if (value) values.push(value);
+  }
+  return values;
+}
+
 client.on(Events.ClientReady, async () => {
   lastReadyAt = Date.now();
   client.user.setPresence({ status: 'dnd', activities: [{ name: 'Logları izliyor', type: 3 }] });
   console.log('Bot aktif: ' + client.user.tag + ' | Sunucu sayısı: ' + client.guilds.cache.size);
   for (const guild of client.guilds.cache.values()) { try { await updateGuildInviteSnapshot(guild); } catch (error) { console.error('[' + guild.name + '] başlangıç ayarı tamamlanamadı:', error.message); } }
-  console.log('Discord bağlantısı hazır. Prefix komutları kullanılabilir.');
-});
-
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
-  const content = message.content.slice(PREFIX.length).trim();
-  const [command, ...args] = content.split(/\s+/);
-  if (command === 'setup') return handleSetupCommand(message);
-  if (command === 'log') return handleLogCommand(message);
-  if (command === 'boost-kanal') return handleBoostChannelCommand(message);
-  if (command === 'boost-gif') return handleBoostGifCommand(message, args);
-  if (command === 'boost-test') return handleBoostTestCommand(message);
-  if (command === 'boost-baslik') return handleBoostTitleCommand(message, args);
-  if (command === 'boost-mesaj') return handleBoostMessageCommand(message, args);
-  if (command === 'ses-gir') return handleVoiceJoinCommand(message, args);
-  if (command === 'help' || command === 'yardım' || command === 'yardim') return handleHelpCommand(message);
+  await registerSlashCommands();
+  console.log('Discord bağlantısı hazır. Slash komutları kullanılabilir.');
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isChatInputCommand()) {
+    const message = createSlashMessage(interaction);
+    const args = getSlashCommandArgs(interaction);
+
+    if (interaction.commandName === 'setup') return handleSetupCommand(message);
+    if (interaction.commandName === 'log') return handleLogCommand(message);
+    if (interaction.commandName === 'boost-kanal') return handleBoostChannelCommand(message);
+    if (interaction.commandName === 'boost-gif') return handleBoostGifCommand(message, args);
+    if (interaction.commandName === 'boost-test') return handleBoostTestCommand(message);
+    if (interaction.commandName === 'boost-baslik') return handleBoostTitleCommand(message, args);
+    if (interaction.commandName === 'boost-mesaj') return handleBoostMessageCommand(message, args);
+    if (interaction.commandName === 'ses-gir') return handleVoiceJoinCommand(message, args);
+    if (interaction.commandName === 'yardim') return handleHelpCommand(message);
+    return;
+  }
+
   if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('voice-join:')) {
     const ownerId = interaction.customId.replace('voice-join:', '');
     if (interaction.user.id !== ownerId) {
