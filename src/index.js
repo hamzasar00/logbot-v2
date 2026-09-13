@@ -1,6 +1,6 @@
-const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors, REST, Routes, ChannelSelectMenuBuilder, StringSelectMenuBuilder, AuditLogEvent, PermissionsBitField, MessageFlags } = require('discord.js');
 const { config } = require('dotenv');
-const { renderLogCard } = require('./log-card');
+const { buildLogComponents, buildLogFallbackComponents, NO_MENTIONS } = require('./log-components');
 config();
 
 const discordToken = process.env.DISCORD_TOKEN?.trim();
@@ -251,11 +251,14 @@ async function sendLog(guildId, logGroupKey, embed) {
   }
 
   try {
-    const card = await renderLogCard(embed, guild);
-    await channel.send({ files: [{ attachment: card, name: 'log-card.png' }] });
+    await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogComponents(embed, guild, logGroupKey), allowedMentions: NO_MENTIONS });
   } catch (error) {
-    console.error('Özel log kartı oluşturulamadı:', error.message);
-    await channel.send({ embeds: [embed] });
+    console.error('Components V2 log kartı oluşturulamadı:', error.message);
+    try {
+      await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogFallbackComponents(embed, guild, logGroupKey, error), allowedMentions: NO_MENTIONS });
+    } catch (fallbackError) {
+      console.error('Components V2 fallback gönderilemedi:', fallbackError.message);
+    }
   }
 }
 
@@ -393,7 +396,7 @@ async function handleBoostTestCommand(message) {
   }
 
   try {
-    await channel.send({ embeds: [buildBoostNotificationEmbed(message.member)] });
+    await channel.send({ flags: MessageFlags.IsComponentsV2, components: buildLogComponents(buildBoostNotificationEmbed(message.member), message.guild, 'boost'), allowedMentions: NO_MENTIONS });
     await message.reply('✅ Test boost bildirimi ' + channel + ' kanalına gönderildi.');
   } catch (error) {
     console.error('Boost test gönderme hatası:', error);
