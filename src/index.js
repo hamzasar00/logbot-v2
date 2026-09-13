@@ -547,20 +547,6 @@ client.on(Events.ClientReady, async () => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) {
-    return;
-  }
-
-  const content = message.content.slice(PREFIX.length).trim();
-  const [command, ...args] = content.split(/\s+/);
-
-  if (command === 'setup') {
-    await handleSetupCommand(message);
-    return;
-  }
-
-  if (command === 'log') {
-    await handleLogComclient.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
   const content = message.content.slice(PREFIX.length).trim();
   const [command, ...args] = content.split(/\s+/);
